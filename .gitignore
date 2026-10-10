@@ -1,0 +1,28 @@
+# Project exclude paths
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Local configuration
+local.properties
+
+# Android
+captures/
+.externalNativeBuild/
+.cxx/
+
+# macOS
+.DS_Store
+
+# Signing / credentials
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key

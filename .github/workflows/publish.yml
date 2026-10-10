@@ -1,0 +1,64 @@
+name: Publish Pagelin
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Publish to Maven Central
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle executable
+        run: chmod +x ./gradlew
+
+      - name: Build and sign publication
+        run: ./gradlew :pagelin:publishReleasePublicationToBundleRepository
+        env:
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.ORG_GRADLE_PROJECT_SIGNINGINMEMORYKEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.ORG_GRADLE_PROJECT_SIGNINGINMEMORYKEYPASSWORD }}
+
+      - name: Generate checksums and bundle
+        run: |
+          REPO="pagelin/build/central-bundle"
+          ARTIFACT_DIR="$REPO/io/github/adamian-code/pagelin/1.0.3"
+
+          find "$ARTIFACT_DIR" -type f \
+            ! -name "*.asc" \
+            ! -name "*.md5" \
+            ! -name "*.sha1" \
+            -print0 | while IFS= read -r -d '' file; do
+              md5sum "$file" | awk '{print $1}' > "$file.md5"
+              sha1sum "$file" | awk '{print $1}' > "$file.sha1"
+          done
+
+          cd "$REPO"
+          zip -r ../central-bundle.zip .
+
+      - name: Upload to Maven Central
+        env:
+          MAVEN_USERNAME: ${{ secrets.ORG_GRADLE_PROJECT_MAVENCENTRALUSERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.ORG_GRADLE_PROJECT_MAVENCENTRALPASSWORD }}
+        run: |
+          TOKEN=$(printf '%s:%s' "$MAVEN_USERNAME" "$MAVEN_PASSWORD" | base64 -w 0)
+
+          curl --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer $TOKEN" \
+            --form "bundle=@pagelin/build/central-bundle.zip" \
+            "https://central.sonatype.com/api/v1/publisher/upload?name=Pagelin-1.0.3&publishingType=AUTOMATIC"
